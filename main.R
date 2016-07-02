@@ -19,7 +19,7 @@ shpfile <- "gs418bw0551/gs418bw0551.shp"
 shp <- readShapeSpatial(shpfile)
 
 # Extract a few parcels (from the neighborhood?)
-sm <- shp[grepl('^006', lapply(shp$apnnodash, as.character)),]
+sm <- shp[grepl('^0064', lapply(shp$apnnodash, as.character)),]
 # rm(shp)
 
 # Make some fake data
@@ -41,8 +41,9 @@ class(sm.f)
 merge.shp.coef<-merge(sm.f, smdata, by="id", all.x=TRUE)
 final.plot <- merge.shp.coef[order(merge.shp.coef$order), ] 
 
-ggplot() +
+p <- ggplot() +
   geom_polygon(data = final.plot, 
     aes(x = long, y = lat, group = group, fill = val), 
     color = "black", size = 0.25) + 
   coord_map()
+print(p)
