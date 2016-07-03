@@ -15,42 +15,16 @@
 # example)
 
 library(maptools)
-shpfile <- "gs418bw0551/gs418bw0551.shp"
-shp <- readShapeSpatial(shpfile)
-
-# Extract a few parcels (from the neighborhood?)
-sm <- shp[grepl('^00649', lapply(shp$apnnodash, as.character)),]
-# rm(shp)
-
-# Make some fake data
-smdata <- data.frame(
-  apnnodash = sm$apnnodash,
-  id = sm$objectid,
-  val = rnorm(length(sm), 10)
-)
-
-# test that sm and smdata have the same APNNODASH
-all(sm$objectid == smdata$id)
-
-library(ggplot2)
-library(rgdal)
-library(rgeos)
-sm.f <- fortify(sm, region="objectid")
-class(sm.f)
-
-merge.shp.coef<-merge(sm.f, smdata, by="id", all.x=TRUE)
-final.plot <- merge.shp.coef[order(merge.shp.coef$order), ] 
-
-p <- ggplot() +
-  geom_polygon(data = final.plot, 
-    aes(x = long, y = lat, group = group, fill = val), 
-    color = "black", size = 0.25) + 
-  coord_map()
-print(p)
-
 library(rvest)
 
 get_apn_data <- function(apn) {
+  html <- get_apn_html(apn)
+  tax <- get_tax(html)
+  addr <- get_address(html)
+  return(list(tax=tax,addr=addr))
+}
+
+get_apn_html <- function(apn) {
   prefix <- "http://sccounty01.co.santa-cruz.ca.us/ASR/ParcelList/linkHREF"
   # The website suggests this "outside" value...
   outside <- "outSide=true"
@@ -64,15 +38,19 @@ get_apn_data <- function(apn) {
 
 # return the total yearly tax as a numeric.
 get_tax <- function(html) {
-  proptaxStr <- html_text(
-    html_nodes(
-      html,
-      "body center table tr td table tr:nth-child(4) td")[[6]]
-  )
-  # Drop '$', ','
-  p1 <- sub('$', '', proptaxStr, fixed=TRUE)
-  p2 <- sub(',', '', p1, fixed=TRUE)
-  proptax <- as.numeric(p2)
+  nodes <- html_nodes(html, "body center table tr td table tr:nth-child(4) td")
+  # Some parcels don't have tax data
+  #  e.g. apn 00649211, of class "940-SCHOOL DISTRICT APN"
+  proptax <- 0
+  if (length(nodes) >= 6) {
+    proptaxStr <- html_text(
+      nodes[[6]]
+    )
+    # Drop '$', ','
+    p1 <- sub('$', '', proptaxStr, fixed=TRUE)
+    p2 <- sub(',', '', p1, fixed=TRUE)
+    proptax <- as.numeric(p2)
+  }
   return(proptax)
 }
 
@@ -98,46 +76,63 @@ get_address <- function(html) {
     return(trim_address(addr))
 }
 
-# get_assessments <- function(apns) {
-#}
-# http://sccounty01.co.santa-cruz.ca.us/ASR/ParcelList/linkHREF?txtAPN=00649409
-# http://sccounty01.co.santa-cruz.ca.us/ASR/ParcelList/linkHREF?txtAPN=00649204
+if (file.exists("data/shp.rda")) {
+  load("data/shp.rda")
+} else {
+  shpfile <- "gs418bw0551/gs418bw0551.shp"
+  shp <- readShapeSpatial(shpfile)
+  save(shp, file="data/shp.rda")
+}
 
-#library(httr)
-#url <- "http://sccounty01.co.santa-cruz.ca.us/ASR/ParcelList"
-#uastring <- "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
-#session <- html_session(url, user_agent(uastring))
-#form <- html_form(session)[[1]]
-#form <- set_values(form, txtAPNNO = "00649409")
-#new_url <- submit_geturl(session, form)
-#new_session <- html_session(new_url, user_agent(uastring))
-#
-#appendList <- function (x, val)
-#{
-#  stopifnot(is.list(x), is.list(val))
-#  xnames <- names(x)
-#  for (v in names(val)) {
-#    x[[v]] <- if (v %in% xnames && is.list(x[[v]]) && is.list(val[[v]]))
-#      appendList(x[[v]], val[[v]])
-#    else c(x[[v]], val[[v]])
-#  }
-#  x
-#}
-# 
-## Simulating submit_form for GET requests
-#submit_geturl <- function (session, form)
-#{
-#  query <- rvest:::submit_request(form)
-#  query$method <- NULL
-#  query$encode <- NULL
-#  query$url <- NULL
-#  names(query) <- "query"
-# 
-#  relativeurl <- XML::getRelativeURL(form$url, session$url)
-#  basepath <- parse_url(relativeurl)
-# 
-#  fullpath <- appendList(basepath,query)
-#  fullpath <- build_url(fullpath)
-#  fullpath
-#}
-#
+if (file.exists("data/final.plot.rda")) {
+  load("data/final.plot.rda")
+} else {
+  # Extract a few parcels (from the neighborhood?)
+  sm <- shp[grepl('^00649', lapply(shp$apnnodash, as.character)),]
+  # rm(shp)
+
+  # Make a df for parcel data
+  len <- length(sm)
+  parcel_data <- data.frame(
+    apnnodash = sm$apnnodash,
+    id = sm$objectid,
+    tax = numeric(len),
+    addr = character(len)
+  )
+
+  # hack - addr shouldn't be factor
+  parcel_data$addr <- as.character(parcel_data$addr)
+
+  # Populate the df with parcel data
+  for (i in 1:len) {
+    apn <- parcel_data[i,]$apnnodash
+    print(paste("scraping data", "(", i, "of", len, ") for parcel", apn))
+    apn_data <- get_apn_data(parcel_data[i,]$apnnodash)
+    parcel_data[i,]$tax <- apn_data$tax
+    parcel_data[i,]$addr <- apn_data$addr
+  }
+
+  # test that sm and parcel_data have the same APNNODASH
+  all(sm$objectid == parcel_data$id)
+
+  library(ggplot2)
+  library(rgdal)
+  library(rgeos)
+  sm.f <- fortify(sm, region="objectid")
+  class(sm.f)
+
+  merge.shp.coef<-merge(sm.f, parcel_data, by="id", all.x=TRUE)
+  final.plot <- merge.shp.coef[order(merge.shp.coef$order), ] 
+  save(final.plot, file="data/final.plot.rda")
+}
+
+p <- ggplot() +
+  geom_polygon(data = final.plot, 
+    aes(x = long, y = lat, group = group, fill = tax), 
+    color = "black", size = 0.25) + 
+  coord_map() +
+  scale_fill_gradient(low = "white", high = "red")
+print(p)
+
+
+
