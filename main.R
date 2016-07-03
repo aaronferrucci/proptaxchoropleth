@@ -21,7 +21,8 @@ get_apn_data <- function(apn) {
   html <- get_apn_html(apn)
   tax <- get_tax(html)
   addr <- get_address(html)
-  return(list(tax=tax,addr=addr))
+  type <- get_type(html)
+  return(list(tax=tax, addr=addr, type=type))
 }
 
 get_apn_html <- function(apn) {
@@ -54,7 +55,7 @@ get_tax <- function(html) {
   return(proptax)
 }
 
-trim_address <- function (x) {
+trim_info <- function (x) {
   # remove leading, trailing whitespace
   x <- gsub("^\\s+|\\s+$", "", x)
   # remove space before comma
@@ -66,14 +67,19 @@ trim_address <- function (x) {
 
 # return the parcel address as a character string.
 get_address <- function(html) {
-  addr <-
-    html_text(
-      html_nodes(
-        html,
-        "body center table  tr td table tr:nth-child(6) td div:nth-child(2) div div.plmTbody div div:nth-child(2)"
-      )
-    )
-    return(trim_address(addr))
+  return(get_parcel_info(html, 2))
+}
+
+get_type <- function(html) {
+  return(get_parcel_info(html, 3))
+}
+
+get_parcel_info <- function(html, child) {
+  selector <-
+    paste0("body center table  tr td table tr:nth-child(6) td div:nth-child(2)
+    div div.plmTbody div div:nth-child(", child, ")")
+  info <- html_text(html_nodes(html, selector))
+  return(trim_info(info))
 }
 
 if (file.exists("data/shp.rda")) {
@@ -88,7 +94,7 @@ if (file.exists("data/final.plot.rda")) {
   load("data/final.plot.rda")
 } else {
   # Extract a few parcels (from the neighborhood?)
-  sm <- shp[grepl('^00649', lapply(shp$apnnodash, as.character)),]
+  sm <- shp[grepl('^0064', lapply(shp$apnnodash, as.character)),]
   # rm(shp)
 
   # Make a df for parcel data
@@ -97,11 +103,13 @@ if (file.exists("data/final.plot.rda")) {
     apnnodash = sm$apnnodash,
     id = sm$objectid,
     tax = numeric(len),
-    addr = character(len)
+    addr = character(len),
+    type = character(len)
   )
 
   # hack - addr shouldn't be factor
   parcel_data$addr <- as.character(parcel_data$addr)
+  parcel_data$type <- as.character(parcel_data$type)
 
   # Populate the df with parcel data
   for (i in 1:len) {
@@ -110,6 +118,7 @@ if (file.exists("data/final.plot.rda")) {
     apn_data <- get_apn_data(parcel_data[i,]$apnnodash)
     parcel_data[i,]$tax <- apn_data$tax
     parcel_data[i,]$addr <- apn_data$addr
+    parcel_data[i,]$type <- apn_data$type
   }
 
   # test that sm and parcel_data have the same APNNODASH
