@@ -16,6 +16,7 @@
 
 library(maptools)
 library(rvest)
+library(ggplot2)
 
 get_apn_data <- function(apn) {
   html <- get_apn_html(apn)
