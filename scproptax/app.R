@@ -17,20 +17,21 @@ library(shiny)
 library(ggvis)
 library(RColorBrewer)
 
-# Define UI for application that draws a histogram
 ui <- shinyUI(fluidPage(
-   # Application title
-   titlePanel('title'),
-   sidebarPanel(
-     radioButtons("radio", label = h3("parcel color"),
-       choices = list("property tax" = 1, "homeowner's exemption" = 2), 
-      selected = 1)
-   ),
-   
-    # Show a plot of the generated distribution
-    mainPanel(
-        ggvisOutput("taxPlot")
-    )
+  #  title
+  titlePanel('title'),
+  
+  # controls
+  sidebarPanel(
+    radioButtons("radio", label = h3("parcel color"),
+    choices = list("property tax" = 1, "homeowner's exemption" = 2), 
+    selected = 1)
+  ),
+  
+  # plot
+  mainPanel(
+    ggvisOutput("taxPlot")
+  )
 ))
 
 load("../data/final.plot.rda")
@@ -51,6 +52,7 @@ final.plot$homeownerColor <- as.character(
   cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=ramp(2))
 )
 
+# tooltip helper. Given a group, extract its row from the data frame.
 get_row_by_group <- function(group) {
   rows <- final.plot[final.plot$group == group, ]
   row <- rows[1, ]
@@ -67,7 +69,6 @@ tt <- function(x) {
 width <- 600
 height <- 800
 
-# Define server logic required to draw a histogram
 server <- shinyServer(function(input, output) {
   reactive({
     if (input$radio == 1)
@@ -76,17 +77,16 @@ server <- shinyServer(function(input, output) {
       final.plot$color <- final.plot$homeownerColor
 
     final.plot %>%
-       ggvis(~long, ~lat) %>%
-        add_axis("x", title = "longitude", grid=FALSE) %>%
-        add_axis("y", title = "latitude", grid=FALSE) %>%
-        group_by(group, id) %>%
-        layer_paths(fill := ~color) %>%
-        add_tooltip(tt, "hover") %>%
-        set_options(width=width, height=height, keep_aspect=T)
+      ggvis(~long, ~lat) %>%
+      add_axis("x", title = "longitude", grid=FALSE) %>%
+      add_axis("y", title = "latitude", grid=FALSE) %>%
+      group_by(group, id) %>%
+      layer_paths(fill := ~color) %>%
+      add_tooltip(tt, "hover") %>%
+      set_options(width=width, height=height, keep_aspect=T)
     }) %>%
     bind_shiny("taxPlot")
 })
 
 # Run the application 
 shinyApp(ui = ui, server = server)
-
