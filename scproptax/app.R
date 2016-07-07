@@ -30,7 +30,7 @@ ui <- shinyUI(fluidPage(
   
   # plot
   mainPanel(
-    ggvisOutput("taxPlot")
+    ggvisOutput("plot")
   )
 ))
 
@@ -70,29 +70,30 @@ width <- 600
 height <- 800
 
 server <- shinyServer(function(input, output) {
-  plot <- reactive({
-    p <- data.frame(
-      long = final.plot$long,
-      lat = final.plot$lat,
-      group = final.plot$group,
-      id = final.plot$id
-    )
-    if (input$radio == 1)
-      p$color <- final.plot$taxColor
-    else 
-      p$color <- final.plot$homeownerColor
-    p
-  })
-
-  plot %>%
+  taxPlot <- final.plot %>%
     ggvis(~long, ~lat) %>%
-      add_axis("x", title = "longitude", grid=FALSE) %>%
-      add_axis("y", title = "latitude", grid=FALSE) %>%
-      group_by(group, id) %>%
-      layer_paths(fill := ~color) %>%
-      add_tooltip(tt, "hover") %>%
-      set_options(width=width, height=height, keep_aspect=T) %>%
-      bind_shiny("taxPlot")
+    add_axis("x", title = "longitude", grid=FALSE) %>%
+    add_axis("y", title = "latitude", grid=FALSE) %>%
+    group_by(group, id) %>%
+    layer_paths(fill := ~taxColor) %>%
+    add_tooltip(tt, "hover") %>%
+    set_options(width=width, height=height, keep_aspect=T)
+
+  homeownerPlot <- final.plot %>%
+    ggvis(~long, ~lat) %>%
+    add_axis("x", title = "longitude", grid=FALSE) %>%
+    add_axis("y", title = "latitude", grid=FALSE) %>%
+    group_by(group, id) %>%
+    layer_paths(fill := ~homeownerColor) %>%
+    add_tooltip(tt, "hover") %>%
+    set_options(width=width, height=height, keep_aspect=T)
+
+  reactive({
+    if (input$radio == 1)
+      taxPlot
+    else
+      homeownerPlot
+  })  %>% bind_shiny("plot")
 })
 
 # Run the application 
