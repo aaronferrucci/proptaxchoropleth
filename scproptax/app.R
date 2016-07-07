@@ -70,22 +70,29 @@ width <- 600
 height <- 800
 
 server <- shinyServer(function(input, output) {
-  reactive({
+  plot <- reactive({
+    p <- data.frame(
+      long = final.plot$long,
+      lat = final.plot$lat,
+      group = final.plot$group,
+      id = final.plot$id
+    )
     if (input$radio == 1)
-      final.plot$color <- final.plot$taxColor
+      p$color <- final.plot$taxColor
     else 
-      final.plot$color <- final.plot$homeownerColor
+      p$color <- final.plot$homeownerColor
+    p
+  })
 
-    final.plot %>%
-      ggvis(~long, ~lat) %>%
+  plot %>%
+    ggvis(~long, ~lat) %>%
       add_axis("x", title = "longitude", grid=FALSE) %>%
       add_axis("y", title = "latitude", grid=FALSE) %>%
       group_by(group, id) %>%
       layer_paths(fill := ~color) %>%
       add_tooltip(tt, "hover") %>%
-      set_options(width=width, height=height, keep_aspect=T)
-    }) %>%
-    bind_shiny("taxPlot")
+      set_options(width=width, height=height, keep_aspect=T) %>%
+      bind_shiny("taxPlot")
 })
 
 # Run the application 
