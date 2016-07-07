@@ -21,13 +21,15 @@ library(RColorBrewer)
 ui <- shinyUI(fluidPage(
    # Application title
    titlePanel('title'),
+   sidebarPanel(
+     radioButtons("radio", label = h3("parcel color"),
+       choices = list("property tax" = 1, "homeowner's exemption" = 2), 
+      selected = 1)
+   ),
    
     # Show a plot of the generated distribution
     mainPanel(
-      tabsetPanel(
-        tabPanel("tax", ggvisOutput("taxPlot")),
-        tabPanel("exemption", ggvisOutput("exemptPlot"))
-      )
+        ggvisOutput("taxPlot")
     )
 ))
 
@@ -40,6 +42,7 @@ ramp <- colorRampPalette(
   space="Lab"
 )
 # color for property tax
+final.plot$color <- final.plot$taxColor
 final.plot$taxColor <- as.character(
   cut(final.plot$tax, 20, include.lowest=TRUE, labels=ramp(20))
 )
@@ -61,32 +64,27 @@ tt <- function(x) {
   "homeowner exemption: ", row$homeowner, "<br/>", row$type, "<br/>")
 }
 
+width <- 600
+height <- 800
+
 # Define server logic required to draw a histogram
 server <- shinyServer(function(input, output) {
-    width <- 600
-    height <- 800
-    final.plot %>%
-      ggvis(~long, ~lat) %>%
-      add_axis("x", title = "longitude", grid=FALSE) %>%
-      add_axis("y", title = "latitude", grid=FALSE) %>%
-      group_by(group, id) %>%
-      layer_paths(fill:=~taxColor) %>%
-      add_tooltip(tt, "hover") %>%
-      set_options(width=width, height=height, keep_aspect=T) %>%
-      bind_shiny("taxPlot")
+  reactive({
+    if (input$radio == 1)
+      final.plot$color <- final.plot$taxColor
+    else 
+      final.plot$color <- final.plot$homeownerColor
 
     final.plot %>%
-      ggvis(~long, ~lat) %>%
-      add_axis("x", title = "longitude", grid=FALSE) %>%
-      add_axis("y", title = "latitude", grid=FALSE) %>%
-      group_by(group, id) %>%
-      layer_paths(fill:=~homeownerColor) %>%
-      add_tooltip(tt, "hover") %>%
-      scale_numeric("fill", range=c("#bfd3e6", "#8c6bb1" ,"#4d004b")) %>%
-      set_options(width=width, height=height, keep_aspect=T) %>%
-      hide_legend("fill") %>%
-      bind_shiny("exemptPlot")
-
+       ggvis(~long, ~lat) %>%
+        add_axis("x", title = "longitude", grid=FALSE) %>%
+        add_axis("y", title = "latitude", grid=FALSE) %>%
+        group_by(group, id) %>%
+        layer_paths(fill := ~color) %>%
+        add_tooltip(tt, "hover") %>%
+        set_options(width=width, height=height, keep_aspect=T)
+    }) %>%
+    bind_shiny("taxPlot")
 })
 
 # Run the application 
