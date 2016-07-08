@@ -19,22 +19,23 @@ library(RColorBrewer)
 
 ui <- shinyUI(fluidPage(
   #  title
-  titlePanel('title'),
+  titlePanel('Santa Cruz Property Tax - Parcels 0064XXXX'),
   
   # controls
   sidebarPanel(
     radioButtons("radio", label = h3("parcel color"),
     choices = list("property tax" = 1, "homeowner's exemption" = 2), 
-    selected = 1)
+    selected = 1),
+    textOutput("summary")
   ),
-  
+
   # plot
   mainPanel(
     ggvisOutput("plot")
   )
 ))
 
-load("../data/final.plot.rda")
+load("./data/final.plot.rda")
 
 # To do: extract these methods to a separate file for sourcing.
 # make a palette from white, through yellow, to red.
@@ -87,7 +88,12 @@ server <- shinyServer(function(input, output) {
     layer_paths(fill := ~homeownerColor) %>%
     add_tooltip(tt, "hover") %>%
     set_options(width=width, height=height, keep_aspect=T)
-
+  output$summary <- renderText({
+    if (input$radio == 1)
+      "Annual Property tax, according to assessment value."
+    else
+      "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
+  })
   reactive({
     if (input$radio == 1)
       taxPlot
