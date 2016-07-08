@@ -26,7 +26,9 @@ ui <- shinyUI(fluidPage(
     radioButtons("radio", label = h3("parcel color"),
     choices = list("property tax" = 1, "homeowner's exemption" = 2), 
     selected = 1),
-    textOutput("summary")
+    textOutput("summary"),
+    br(),
+    textOutput("hoverNote")
   ),
 
   # plot
@@ -73,8 +75,8 @@ height <- 800
 server <- shinyServer(function(input, output) {
   taxPlot <- final.plot %>%
     ggvis(~long, ~lat) %>%
-    add_axis("x", title = "longitude", grid=FALSE) %>%
-    add_axis("y", title = "latitude", grid=FALSE) %>%
+    hide_axis("x") %>%
+    hide_axis("y") %>%
     group_by(group, id) %>%
     layer_paths(fill := ~taxColor) %>%
     add_tooltip(tt, "hover") %>%
@@ -82,17 +84,21 @@ server <- shinyServer(function(input, output) {
 
   homeownerPlot <- final.plot %>%
     ggvis(~long, ~lat) %>%
-    add_axis("x", title = "longitude", grid=FALSE) %>%
-    add_axis("y", title = "latitude", grid=FALSE) %>%
+    hide_axis("x") %>%
+    hide_axis("y") %>%
     group_by(group, id) %>%
     layer_paths(fill := ~homeownerColor) %>%
     add_tooltip(tt, "hover") %>%
     set_options(width=width, height=height, keep_aspect=T)
   output$summary <- renderText({
     if (input$radio == 1)
-      "Annual Property tax, according to assessment value."
+      str <- "Annual Property tax, according to assessment value."
     else
-      "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
+      str <- "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
+    str
+  })
+  output$hoverNote <- renderText({
+    "Hover over a parcel for more information."
   })
   reactive({
     if (input$radio == 1)
