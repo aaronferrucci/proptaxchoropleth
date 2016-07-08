@@ -13,3 +13,4 @@ References:
 
 ![alt text](https://github.com/aaronferrucci/proptaxchoropleth/blob/master/parcels.png "PNG example image")
 
+![shiny app](https://aaronferrucci.shinyapps.io/proptaxchoropleth/ "Interactive graph, hosted on shinyapps.io")
