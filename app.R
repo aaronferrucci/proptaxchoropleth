@@ -23,14 +23,14 @@ ui <- shinyUI(fluidPage(
   
   # controls
   sidebarPanel(
-    radioButtons("radio", label = h3("parcel color"),
-    choices = list("property tax" = 1, "homeowner's exemption" = 2), 
-    selected = 1),
+    radioButtons("plotSelect", label = h3("Plot Select"),
+                 choices = list("property tax" = 1, "homeowner's exemption" = 2), 
+                 selected = 1),
     textOutput("summary"),
     br(),
     textOutput("hoverNote")
   ),
-
+  
   # plot
   mainPanel(
     ggvisOutput("plot")
@@ -38,21 +38,26 @@ ui <- shinyUI(fluidPage(
 ))
 
 load("./data/final.plot.rda")
+final.plot$qtax <- round(final.plot$tax, -3)
+final.plot$qhomeowner <- ifelse(final.plot$homeowner, "Y", "N")
+#final.plot$qhomeowner <- final.plot$homeowner + 0
 
-# To do: extract these methods to a separate file for sourcing.
-# make a palette from white, through yellow, to red.
-ramp <- colorRampPalette(
+# color for property tax
+rampTax <- colorRampPalette(
   c("white", brewer.pal(n=9, name="YlOrRd")),
   space="Lab"
 )
-# color for property tax
-final.plot$color <- final.plot$taxColor
 final.plot$taxColor <- as.character(
-  cut(final.plot$tax, 20, include.lowest=TRUE, labels=ramp(20))
+  cut(final.plot$tax, 20, include.lowest=TRUE, labels=rampTax(20))
 )
+
 # color for homeowner's exemption
+rampHO <- colorRampPalette(
+  c("white", "lime green"),
+  space="Lab"
+)
 final.plot$homeownerColor <- as.character(
-  cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=ramp(2))
+  cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=rampHO(2))
 )
 
 # tooltip helper. Given a group, extract its row from the data frame.
@@ -73,25 +78,8 @@ width <- 600
 height <- 800
 
 server <- shinyServer(function(input, output) {
-  taxPlot <- final.plot %>%
-    ggvis(~long, ~lat) %>%
-    hide_axis("x") %>%
-    hide_axis("y") %>%
-    group_by(group, id) %>%
-    layer_paths(fill := ~taxColor) %>%
-    add_tooltip(tt, "hover") %>%
-    set_options(width=width, height=height, keep_aspect=T)
-
-  homeownerPlot <- final.plot %>%
-    ggvis(~long, ~lat) %>%
-    hide_axis("x") %>%
-    hide_axis("y") %>%
-    group_by(group, id) %>%
-    layer_paths(fill := ~homeownerColor) %>%
-    add_tooltip(tt, "hover") %>%
-    set_options(width=width, height=height, keep_aspect=T)
   output$summary <- renderText({
-    if (input$radio == 1)
+    if (input$plotSelect == 1)
       str <- "Annual Property tax, according to assessment value."
     else
       str <- "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
@@ -100,8 +88,31 @@ server <- shinyServer(function(input, output) {
   output$hoverNote <- renderText({
     "Hover over a parcel for more information."
   })
+  
+  taxPlot <- final.plot %>%
+    ggvis(~long, ~lat) %>%
+    group_by(group, id) %>%
+    layer_paths(fill = ~qtax) %>%
+    scale_numeric("fill", range = c("white", "red")) %>%
+    hide_axis("x") %>%
+    hide_axis("y") %>%
+    add_legend("fill", title="annual property tax") %>%
+    add_tooltip(tt, "hover") %>%
+    set_options(width=width, height=height, keep_aspect=T)
+
+  homeownerPlot <- final.plot %>%
+    ggvis(~long, ~lat) %>%
+    group_by(group, id) %>%
+    layer_paths(fill = ~qhomeowner) %>%
+    scale_ordinal("fill", range = c("white", "limegreen")) %>%
+    hide_axis("x") %>%
+    hide_axis("y") %>%
+    add_legend("fill", title="exemption") %>%
+    add_tooltip(tt, "hover") %>%
+    set_options(width=width-50, height=height, keep_aspect=T)
+
   reactive({
-    if (input$radio == 1)
+    if (input$plotSelect == 1)
       taxPlot
     else
       homeownerPlot
