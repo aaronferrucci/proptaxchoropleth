@@ -17,8 +17,8 @@ library(shiny)
 library(ggvis)
 library(RColorBrewer)
 
-default_area <- "006"
-areas <- c("006", "0062")
+default_page <- "49"
+pages <- c("49", "50", "51", "52")
 ui <- shinyUI(fluidPage(
   #  title
   # titlePanel('Santa Cruz Property Tax - Parcels 0064XXXX'),
@@ -28,10 +28,16 @@ ui <- shinyUI(fluidPage(
   # controls
   sidebarLayout(
     sidebarPanel(
-      selectInput("area", "Area", areas, default_area),
-      radioButtons("plotSelect", label = "Plotting Options",
-                   choices = list("property tax" = 1, "homeowner's exemption" = 2), 
-                   selected = 1),
+      selectInput("page", "Page", pages, default_page),
+      radioButtons("plotSelect",
+                    label = "Plotting Options",
+                    choices = list(
+                    "property tax" = 1,
+                    "homeowner's exemption" = 2,
+                    "year built" = 3
+                    ), 
+                    selected = 1
+                  ),
       textOutput("summary"),
       br(),
       textOutput("hoverNote")
@@ -62,35 +68,39 @@ rampHO <- colorRampPalette(
 #   cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=rampHO(2))
 # )
 
-width <- 800
+width <- 600
 height <- 800
+file <- "./data/final.plot.006.rda"
+load(file)
+final.plot$qtax <- round(final.plot$tax, -3)
+final.plot$qhomeowner <- ifelse(final.plot$exemption == 7000, "Y", "N")
+page <- "49"
+
+# tooltip helper. Given a group, extract its row from the data frame.
+get_row_by_group <- function(group) {
+  rows <- final.plot[final.plot$group == group, ]
+  row <- rows[1, ]
+  
+  row
+}
+
+tt <- function(x) {
+  if(is.null(x)) return(NULL)
+  row <- get_row_by_group(x$group)
+  paste0(row$apnnodash, "<br/>", row$addr, "<br/>", "tax: $", row$tax, "<br/>",
+       "homeowner exemption: ", row$homeowner, "<br/>", row$type, "<br/>")
+}
 
 server <- shinyServer(function(input, output) {
 
+  df <- reactive({
+    re <- paste0("^006", input$page)
+    final.plot[grepl(re, final.plot$apnnodash),]
+  })
+  
   reactive({
-    file <- paste0("./data/final.plot.", input$area, ".rda")
-    load(file)
-
-    final.plot$qtax <- round(final.plot$tax, -3)
-    final.plot$qhomeowner <- ifelse(final.plot$exemption == 7000, "Y", "N")
-
-    # tooltip helper. Given a group, extract its row from the data frame.
-    get_row_by_group <- function(group) {
-      rows <- final.plot[final.plot$group == group, ]
-      row <- rows[1, ]
-      
-      row
-    }
-    
-    tt <- function(x) {
-      if(is.null(x)) return(NULL)
-      row <- get_row_by_group(x$group)
-      paste0(row$apnnodash, "<br/>", row$addr, "<br/>", "tax: $", row$tax, "<br/>",
-           "homeowner exemption: ", row$homeowner, "<br/>", row$type, "<br/>")
-    }
-    
     if (input$plotSelect == 1)
-      plot <- final.plot %>%
+      plot <- df %>%
         ggvis(~long, ~lat) %>%
         group_by(group, id) %>%
         layer_paths(fill = ~qtax) %>%
@@ -100,8 +110,8 @@ server <- shinyServer(function(input, output) {
         add_legend("fill", title="annual property tax") %>%
         add_tooltip(tt, "hover") %>%
         set_options(width=width, height=height, keep_aspect=T)
-    else
-      plot <- final.plot %>%
+    else if (input$plotSelect == 2)
+      plot <- df %>%
         ggvis(~long, ~lat) %>%
         group_by(group, id) %>%
         layer_paths(fill = ~qhomeowner) %>%
@@ -111,22 +121,35 @@ server <- shinyServer(function(input, output) {
         add_legend("fill", title="exemption") %>%
         add_tooltip(tt, "hover") %>%
         set_options(width=width-50, height=height, keep_aspect=T)
-  
+    else
+      plot <- df %>%
+        ggvis(~long, ~lat) %>%
+        group_by(group, id) %>%
+        layer_paths(fill = ~year_built) %>%
+        scale_numeric("fill", range = c("white", "blue")) %>%
+        hide_axis("x") %>%
+        hide_axis("y") %>%
+        add_legend("fill", title="exemption") %>%
+        add_tooltip(tt, "hover") %>%
+        set_options(width=width-50, height=height, keep_aspect=T)
+    
     return(plot)
   }) %>% bind_shiny("plot")
 
   output$summary <- renderText({
     if (input$plotSelect == 1)
       str <- "Annual Property tax, according to assessment value."
-    else
+    else if (input$plotSelect == 2)
       str <- "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
+    else
+      str <- "something about year built"
     str
   })
   output$hoverNote <- renderText({
     "Hover over a parcel for more information."
   })
   output$selectedArea <- renderText({
-    paste0('Santa Cruz Property Tax - Parcels ', input$area, "XXXX")
+    paste0('Santa Cruz Property Tax - Parcels ', "006-", input$page, "X-XXX")
   })
   
 })
