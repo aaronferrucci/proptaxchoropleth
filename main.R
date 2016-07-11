@@ -18,19 +18,141 @@ library(maptools)
 library(rvest)
 library(ggplot2)
 
-get_apn_html <- function(apn) {
+get_apn_characteristics_url <- function(apn) {
+  prefix <- "http://sccounty01.co.santa-cruz.ca.us/ASR/Characteristics/linkHREF"
+  # The website suggests this "outside" value...
+  outside <- "outSide=true"
+  apnquery <- paste("txtAPN", sep = "=", apn)
+  query <- paste(apnquery, outside, sep = "&")
+  url <- paste(prefix, query, sep="?")
+  
+  return(url)
+}
+
+get_apn_characteristics_html <- function(apn) {
+  url <- get_apn_characteristics_url(apn)
+  
+  html <- read_html(url)
+  return(html)
+}
+
+get_apn_tax_url <- function(apn) {
   prefix <- "http://sccounty01.co.santa-cruz.ca.us/ASR/ParcelList/linkHREF"
   # The website suggests this "outside" value...
   outside <- "outSide=true"
   apnquery <- paste("txtAPN", sep = "=", apn)
   query <- paste(apnquery, outside, sep = "&")
   url <- paste(prefix, query, sep="?")
+  
+  return(url)
+}
+
+get_apn_tax_html <- function(apn) {
+  url <- get_apn_tax_url(apn)
 
   html <- read_html(url)
   return(html)
 }
 
-get_apn_data <- function(html) {
+get_characteristic_page_int <- function(html, i1, i2) {
+  val <- get_characteristic_page_str(html, i1, i2)
+  if (val == "None")
+    return(NA)
+  if (val == "N/A")
+    return(NA)
+  return(as.integer(val))
+}
+
+get_characteristic_page_str <- function(html, i1, i2) {
+  selector <- paste0("body center table tr td table tr:nth-child(6) td div:nth-child(", i1, ") div div.plmTd_AOM")
+  nodes <- html_nodes(html, selector)
+  if (length(nodes) < i2) {
+    return("None")
+  }
+  val <- html_text(nodes[[i2]])
+
+  # for multi-unit parcels, choose the first.
+  if (length(val) > 1)
+    print("warning: only using first data for parcel")
+  
+  firstval <- val[[1]]
+  return(trim_info(firstval))
+}
+
+get_year_built <- function(html) {
+  return(get_characteristic_page_int(html, 1, 2))
+}
+
+get_effective_year <- function(html) {
+  return(get_characteristic_page_int(html, 1, 3))
+}
+
+get_num_units <- function(html){
+  return(get_characteristic_page_int(html, 1, 4))
+}
+
+get_main_area <- function(html) {
+  return(get_characteristic_page_int(html, 2, 2))
+}
+
+get_num_rooms <- function(html) {
+  return(get_characteristic_page_int(html, 2, 3))
+}
+
+get_bedrooms <- function(html) {
+  return(get_characteristic_page_int(html, 2, 4))
+}
+
+get_bathrooms <- function(html) {
+  return(get_characteristic_page_str(html, 2, 5))
+}
+
+get_roof <- function(html) {
+  return(get_characteristic_page_str(html, 2, 6))
+}
+
+get_heat <- function(html) {
+  return(get_characteristic_page_str(html, 2, 7))
+}
+
+get_fireplaces <- function(html) {
+  return(get_characteristic_page_int(html, 2, 8))
+}
+
+get_pools <- function(html) {
+  return(get_characteristic_page_int(html, 3, 2))
+}
+
+get_apn_characteristics_data <- function(html) {
+  year_built <- get_year_built(html)
+  effective_year <- get_effective_year(html)
+  num_units <- get_num_units(html)
+  num_rooms <- get_num_rooms(html)
+  bedrooms <- get_bedrooms(html)
+  bathrooms <- get_bathrooms(html)
+  roof <- get_roof(html)
+  heat <- get_heat(html)
+  fireplaces <- get_fireplaces(html)
+  pools <- get_pools(html)
+
+  return(
+    list(
+      year_built=year_built,
+      effective_year=effective_year,
+      num_units=num_units,
+      num_rooms=num_rooms,
+      bedrooms=bedrooms,
+      bathrooms=bathrooms,
+      roof=roof,
+      heat=heat,
+      fireplaces=fireplaces,
+      pools=pools
+    )
+  )
+  
+}
+
+get_apn_tax_data <- function(html) {
   tax <- get_tax(html)
   addr <- get_address(html)
   type <- get_type(html)
@@ -114,11 +236,14 @@ if (file.exists("data/shp.rda")) {
   save(shp, file="data/shp.rda")
 }
 
-if (file.exists("data/final.plot.rda")) {
-  load("data/final.plot.rda")
+area <- "006"
+plot_file <- paste0("data/final.plot.", area, ".rda")
+if (file.exists(plot_file)) {
+  print(paste0("Using cached plot data from ", plot_file))
+  load(plot_file)
 } else {
-  # Extract a few parcels (from the neighborhood?)
-  sm <- shp[grepl('^0064', lapply(shp$apnnodash, as.character)),]
+  area_regexp <- paste0("^", area)
+  sm <- shp[grepl(area_regexp, lapply(shp$apnnodash, as.character)),]
   # rm(shp)
 
   # Make a df for parcel data
@@ -129,35 +254,50 @@ if (file.exists("data/final.plot.rda")) {
     tax = numeric(len),
     exemption = numeric(len),
     addr = character(len),
-    type = character(len)
+    type = character(len),
+    year_built = integer(len),
+    effective_year = integer(len),
+    num_units = integer(len),
+    num_rooms = integer(len),
+    bedrooms = integer(len),
+    bathrooms = integer(len),
+    roof = character(len),
+    heat = character(len),
+    fireplaces = integer(len),
+    pools = integer(len)
   )
 
-  # hack - addr shouldn't be factor
+  # hack - a few fields shouldn't be factor
   parcel_data$addr <- as.character(parcel_data$addr)
   parcel_data$type <- as.character(parcel_data$type)
- 
-  # Issue: loading saved parcel_html crashes R studio.
-  if (FALSE && file.exists("data/parcel_html.rda")) {
-    print("using cached html parcel data from data/parcel_html.rda")
-    load("data/parcel_html.rda")
-  } else {
-    parcel_html <- vector("list", len)
-    for (i in 1:len) {
-      apn <- parcel_data[i,]$apnnodash
-      print(paste("scraping data", "(", i, "of", len, ") for parcel", apn))
-      parcel_html[[i]] <- get_apn_html(apn)
-    }
-    save(parcel_html, file="data/parcel_html.rda")
-  }
-
-  # Populate the df with parcel data
+  parcel_data$roof <- as.character(parcel_data$roof)
+  parcel_data$heat <- as.character(parcel_data$heat)
+  
   for (i in 1:len) {
-    html <- parcel_html[[i]]
-    apn_data <- get_apn_data(html)
+    apn <- parcel_data[i,]$apnnodash
+    print(paste("scraping data", "(", i, "of", len, ") for parcel", apn))
+    tax_html <- get_apn_tax_html(apn)
+    char_html <- get_apn_characteristics_html(apn)
+
+    print(paste("parsing data", "(", i, "of", len, ") for parcel", apn))
+    apn_data <- get_apn_tax_data(tax_html)
+    char_data <- get_apn_characteristics_data(char_html)
+    
     parcel_data[i,]$tax <- apn_data$tax
     parcel_data[i,]$addr <- apn_data$addr
     parcel_data[i,]$type <- apn_data$type
     parcel_data[i,]$exemption <- apn_data$exemption
+    
+    parcel_data[i,]$year_built = char_data$year_built
+    parcel_data[i,]$effective_year = char_data$effective_year
+    parcel_data[i,]$num_units = char_data$num_units
+    parcel_data[i,]$num_rooms = char_data$num_rooms
+    parcel_data[i,]$bedrooms = char_data$bedrooms
+    parcel_data[i,]$bathrooms = char_data$bathrooms
+    parcel_data[i,]$roof = char_data$roof
+    parcel_data[i,]$heat = char_data$heat
+    parcel_data[i,]$fireplaces = char_data$fireplaces
+    parcel_data[i,]$pools = char_data$pools
   }
 
   # some derived parcel data
@@ -173,8 +313,9 @@ if (file.exists("data/final.plot.rda")) {
   class(sm.f)
 
   merge.shp.coef<-merge(sm.f, parcel_data, by="id", all.x=TRUE)
-  final.plot <- merge.shp.coef[order(merge.shp.coef$order), ] 
-  save(final.plot, file="data/final.plot.rda")
+  final.plot <- merge.shp.coef[order(merge.shp.coef$order), ]
+
+  save(final.plot, file=plot_file)
 }
 
 p <- ggplot() +
@@ -199,7 +340,7 @@ get_row_by_group <- function(group) {
 tt <- function(x) {
   row <- get_row_by_group(x$group)
   paste0(row$apnnodash, "<br/>", row$addr, "<br/>", "tax: $", row$tax, "<br/>",
-  "homeowner exemption: ", row$homeowner, "<br/>", row$type, "<br/>")
+  "homeowner exemption: ", row$homeowner, "<br/>", "year built: ", row$year_built, "<br/>", row$type, "<br/>")
 }
 
 # make a palette from white, through yellow, to red.
@@ -213,22 +354,36 @@ final.plot$taxColor <- as.character(
   cut(final.plot$tax, 20, include.lowest=TRUE, labels=ramp(20))
 )
 
+final.plot$qtax <- round(final.plot$tax, -3)
 p2 <- final.plot %>%
   ggvis(~long, ~lat) %>%
   group_by(group, id) %>%
-  layer_paths(fill:=~taxColor, strokeOpacity := 0.5, strokeWidth := 0.25) %>%
+  # layer_paths(fill:=~taxColor, strokeOpacity := 0.5, strokeWidth := 0.25) %>%
+  layer_paths(fill = ~qtax) %>%
+  # scale_numeric("fill", range = final.plot$taxColor) %>%
+  scale_numeric("fill", range = c("white", "red")) %>%
+  add_legend("fill", title="annual property tax") %>%
   add_tooltip(tt, "hover") %>%
   set_options(width=100, height=600, keep_aspect=T)
 
 # homeowner's exemption
+ramp2 <- colorRampPalette(
+  c("white", "green"),
+  space="Lab"
+)
 final.plot$homeownerColor <- as.character(
-  cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=ramp(2))
+  cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=ramp2(2))
 )
 p3 <- final.plot %>%
   ggvis(~long, ~lat) %>%
   group_by(group, id) %>%
   layer_paths(fill:=~homeownerColor) %>%
   add_tooltip(tt, "hover") %>%
-  scale_numeric("fill", range=c("#bfd3e6", "#8c6bb1" ,"#4d004b")) %>%
   set_options(width=100, height=600, keep_aspect=T)
 
+p4 <- final.plot %>%
+  ggvis(~long, ~lat) %>%
+  group_by(group, id) %>%
+  layer_paths(fill = ~year_built) %>%
+  add_tooltip(tt, "hover") %>%
+  set_options(width=100, height=600, keep_aspect=T)
