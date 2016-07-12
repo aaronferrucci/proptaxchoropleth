@@ -4,15 +4,15 @@ library(ggvis)
 library(RColorBrewer)
 
 page_sels <- list(
-  "A" = c("44", "46", "47", "48", "49", "50"),
-  "B" = c("21", "22", "28", "41", "42", "43"),
-  "C" = as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)),
-  "D" = c("08", "15", "16"),
-  "E" = as.character(c(18, 19, 20, 26, 31)),
-  "F" = c("07", "13", "14", "27", "30"),
-  "G" = c("11", "12", "29", "33"),
-  "H" = c("02", "03", "09", "10", "34"),
-  "I" = c("01", "06", "23", "24", "32", "53", "58", "60")
+  "A" = paste0(c("44", "46", "47", "48", "49", "50"), collapse=","),
+  "B" = paste0(c("21", "22", "28", "41", "42", "43"), collapse=","),
+  "C" = paste0(as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)), collapse=","),
+  "D" = paste0(c("08", "15", "16"), collapse=","),
+  "E" = paste0(as.character(c(18, 19, 20, 26, 31)), collapse=","),
+  "F" = paste0(c("07", "13", "14", "27", "30"), collapse=","),
+  "G" = paste0(c("11", "12", "29", "33"), collapse=","),
+  "H" = paste0(c("02", "03", "09", "10", "34"), collapse=","),
+  "I" = paste0(c("01", "06", "23", "24", "32", "53", "58", "60"), collapse=",")
 )
 default_page_sel <- page_sels[[1]]
 
@@ -89,9 +89,8 @@ tt <- function(x) {
 server <- shinyServer(function(input, output) {
 
   df <- reactive({
-    final.plot[final.plot$page %in% input$page_sel, ]
-    # re <- paste0("^006", input$page)
-    # final.plot[grepl(re, final.plot$apnnodash),]
+    sel <- unlist(strsplit(input$page_sel, ",", fixed=TRUE))
+    final.plot[final.plot$page %in% sel, ]
   })
   
   reactive({
@@ -145,7 +144,7 @@ server <- shinyServer(function(input, output) {
     "Hover over a parcel for more information."
   })
   output$selectedArea <- renderText({
-    paste0('Santa Cruz Property Tax - Pages ', "006-", paste0(input$page_sel, collapse=", "))
+    paste0('Santa Cruz Property Tax - Book 006, Pages ', input$page_sel)
   })
   
 })
