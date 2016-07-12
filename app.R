@@ -1,34 +1,29 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
-
-# TO do:
-# single graph panel,
-# sidebar with controls for selecting various graph
-# options, e.g. how to color (tax, homeowner exemption),
-# grid lines, lat/lon labels, selection of apn subset.
 
 library(shiny)
 library(ggvis)
 library(RColorBrewer)
 
-default_page <- "49"
-pages <- c("49", "50", "51", "52")
+page_sels <- list(
+  "A" = c("44", "46", "47", "48", "49", "50"),
+  "B" = c("21", "22", "28", "41", "42", "43"),
+  "C" = as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)),
+  "D" = c("08", "15", "16"),
+  "E" = as.character(c(18, 19, 20, 26, 31)),
+  "F" = c("07", "13", "14", "27", "30"),
+  "G" = c("11", "12", "29", "33"),
+  "H" = c("02", "03", "09", "10", "34"),
+  "I" = c("01", "06", "23", "24", "32", "53", "58", "60")
+)
+default_page_sel <- page_sels[[1]]
+
 ui <- shinyUI(fluidPage(
   #  title
-  # titlePanel('Santa Cruz Property Tax - Parcels 0064XXXX'),
-  # titlePanel(paste0('Santa Cruz Property Tax - Parcels ', textOutput("selectedArea"))),
   titlePanel(textOutput("selectedArea")),
   
   # controls
   sidebarLayout(
     sidebarPanel(
-      selectInput("page", "Page", pages, default_page),
+      selectInput("page_sel", "Pages", page_sels, default_page_sel),
       radioButtons("plotSelect",
                     label = "Plotting Options",
                     choices = list(
@@ -74,7 +69,7 @@ file <- "./data/final.plot.006.rda"
 load(file)
 final.plot$qtax <- round(final.plot$tax, -3)
 final.plot$qhomeowner <- ifelse(final.plot$exemption == 7000, "Y", "N")
-page <- "49"
+final.plot$page <- substring(final.plot$apnnodash, 4, 5)
 
 # tooltip helper. Given a group, extract its row from the data frame.
 get_row_by_group <- function(group) {
@@ -94,8 +89,9 @@ tt <- function(x) {
 server <- shinyServer(function(input, output) {
 
   df <- reactive({
-    re <- paste0("^006", input$page)
-    final.plot[grepl(re, final.plot$apnnodash),]
+    final.plot[final.plot$page %in% input$page_sel, ]
+    # re <- paste0("^006", input$page)
+    # final.plot[grepl(re, final.plot$apnnodash),]
   })
   
   reactive({
@@ -149,7 +145,7 @@ server <- shinyServer(function(input, output) {
     "Hover over a parcel for more information."
   })
   output$selectedArea <- renderText({
-    paste0('Santa Cruz Property Tax - Parcels ', "006-", input$page, "X-XXX")
+    paste0('Santa Cruz Property Tax - Pages ', "006-", paste0(input$page_sel, collapse=", "))
   })
   
 })
