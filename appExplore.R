@@ -43,18 +43,22 @@ file <- "./data/final.plot.006.rda"
 load(file)
 final.plot$page <- substring(final.plot$apnnodash, 4, 5)
 final.plot$page2 <- substring(final.plot$apnnodash, 4, 5)
-
-final.plot[final.plot$page %in% c("44", "46", "47", "48", "49", "50"),]$page2 <-
-"44, 46, 47, 48, 49, 50"
-final.plot[final.plot$page %in% c("21", "22", "28", "41", "42", "43"),]$page2 <-
-"21, 22, 28, 41, 42, 43"
-final.plot[final.plot$page %in% as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)),]$page2 <-
-"17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57"
-final.plot[final.plot$page %in% c("08", "15", "16"),]$page2 <-
-"08, 15, 16"
-final.plot[final.plot$page %in% as.character(c(18, 19, 20, 26, 31)),]$page2 <-
-"18, 19, 20, 26, 31"
-
+page_sels <- list(
+  c("44", "46", "47", "48", "49", "50"),
+  c("21", "22", "28", "41", "42", "43"),
+  as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)),
+  c("08", "15", "16"),
+  as.character(c(18, 19, 20, 26, 31)),
+  c("07", "13", "14", "27", "30"),
+  c("11", "12", "29", "33"),
+  c("02", "03", "09", "10", "34"),
+  c("01", "06", "23", "24", "32", "53", "58", "60")
+)
+for (i in 1:length(page_sels))
+{
+  sel <- page_sels[[i]]
+  final.plot[final.plot$page %in% sel,]$page2 <- paste0(sel, collapse=",")
+}
 
 # tooltip helper. Given a group, extract its row from the data frame.
 get_row_by_group <- function(group) {
