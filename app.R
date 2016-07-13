@@ -23,7 +23,7 @@ ui <- shinyUI(fluidPage(
   # controls
   sidebarLayout(
     sidebarPanel(
-      selectInput("page_sel", "Pages", page_sels, default_page_sel),
+      selectInput("page_sel", "Map Region", page_sels, default_page_sel),
       radioButtons("plotSelect",
                     label = "Plotting Options",
                     choices = list(
@@ -38,9 +38,54 @@ ui <- shinyUI(fluidPage(
       textOutput("hoverNote")
     ),
 
-    # plot
     mainPanel(
-      ggvisOutput("plot")
+      tabsetPanel(
+        tabPanel(
+          "README",
+          fluidRow(
+            br(),
+            column(8, offset=2,
+              "Parcel data for Santa Cruz County is available from the Assessor's web page. 
+               The general public can look up various aspects of parcels in Santa Cruz, but
+               data visualization options are limited. This app provides a
+               view of some aspects of parcel data in an interactive map.",
+              br(),
+              br(),
+              "Each Parcel is identified by an Assessor's Parcel Number (APN), which 
+              is an 8 digit number separated by dashes (e.g. 049-103-12). The first 
+              3 digits represent the Assessor's mapbook containing the Parcel (Book 
+              049 in the above example). The next 2 digits represent the page number 
+              within that mapbook (Page 10 in the example). The next digit represents 
+              the block number on that page (Block 3 in the example). The last 2 
+              digits represent the Assessor's Parcel Number on that block (12 in the 
+              example).",
+              br(),
+              br(),
+              "On the left are widgets which control the map area and plotting options
+              for the parcel map. You can color the map according to annual tax, homeowner's
+              exemption or year built.",
+              br(),
+              br(),
+              "Click the Parcel Map to view the selected map, and play around with the plotting
+              options.",
+              br(),
+              br()
+            ),
+            fluidRow(
+              br(),
+              column(8, offset=2,
+                     tableOutput("url_table")
+              ),
+              br()
+            )
+          )
+        ),
+        # Plot panel
+        tabPanel("Parcel Map", 
+                 br(),
+                 column(12, ggvisOutput('plot'))
+        )
+      )
     )
   )
 ))
@@ -100,7 +145,7 @@ server <- shinyServer(function(input, output) {
         hide_axis("y") %>%
         add_legend("fill", title="homeowner") %>%
         add_tooltip(tt, "hover") %>%
-        set_options(width=width-50, height=height, keep_aspect=T)
+        set_options(width=width-39, height=height, keep_aspect=T)
     else
       plot <- df %>%
         ggvis(~long, ~lat) %>%
@@ -111,7 +156,7 @@ server <- shinyServer(function(input, output) {
         hide_axis("y") %>%
         add_legend("fill", title="year built", format="4d") %>%
         add_tooltip(tt, "hover") %>%
-        set_options(width=width-50, height=height, keep_aspect=T)
+        set_options(width=width-5, height=height, keep_aspect=T)
     
     return(plot)
   }) %>% bind_shiny("plot")
@@ -131,6 +176,25 @@ server <- shinyServer(function(input, output) {
   output$selectedArea <- renderText({
     paste0('Santa Cruz Property Tax - Book 006, Pages ', input$page_sel)
   })
+  
+  output$url_table <- renderTable({
+    labels <- c(
+      "Santa Cruz County Assessor's Website",
+      "source code"
+    )
+    urls <- c(
+      "http://sccounty01.co.santa-cruz.ca.us/ASR/",
+      "https://github.com/aaronferrucci/proptaxchoropleth"
+    )
+    references <- paste0(
+      labels, ": ", 
+      "<a href='",  urls, "' target='_blank'>",
+      urls, "</a>")
+    
+    data.frame(references)
+    
+  }, sanitize.text.function = function(x) x)
+  
   
 })
 
