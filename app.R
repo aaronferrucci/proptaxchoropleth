@@ -34,8 +34,7 @@ ui <- shinyUI(fluidPage(
                     selected = 1
                   ),
       textOutput("summary"),
-      br(),
-      textOutput("hoverNote")
+      br()
     ),
 
     mainPanel(
@@ -51,9 +50,9 @@ ui <- shinyUI(fluidPage(
                view of some aspects of parcel data in an interactive map.",
               br(),
               br(),
-              "Each Parcel is identified by an Assessor's Parcel Number (APN), which 
+              "Each parcel is identified by an Assessor's Parcel Number (APN), which 
               is an 8 digit number separated by dashes (e.g. 049-103-12). The first 
-              3 digits represent the Assessor's mapbook containing the Parcel (Book 
+              3 digits represent the Assessor's mapbook containing the parcel (Book 
               049 in the above example). The next 2 digits represent the page number 
               within that mapbook (Page 10 in the example). The next digit represents 
               the block number on that page (Block 3 in the example). The last 2 
@@ -62,12 +61,12 @@ ui <- shinyUI(fluidPage(
               br(),
               br(),
               "On the left are widgets which control the map area and plotting options
-              for the parcel map. You can color the map according to annual tax, homeowner's
-              exemption or year built.",
+              for the parcel map. You can select a region of the map to display - a set
+              of pages chosen to be contiguous. You can also color the map according to
+              annual tax assessment, homeowner's exemption or year built.",
               br(),
               br(),
-              "Click the Parcel Map to view the selected map, and play around with the plotting
-              options.",
+              "Hover over a parcel for more information.",
               br(),
               br()
             ),
@@ -169,9 +168,6 @@ server <- shinyServer(function(input, output) {
     else
       str <- "Year built, according to county records"
     str
-  })
-  output$hoverNote <- renderText({
-    "Hover over a parcel for more information."
   })
   output$selectedArea <- renderText({
     paste0('Santa Cruz Property Tax - Book 006, Pages ', input$page_sel)
