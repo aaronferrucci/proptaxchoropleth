@@ -37,7 +37,9 @@ ui <- shinyUI(fluidPage(
                   ),
       textOutput("summary"),
       br(),
-      textOutput("pageSel")
+      textOutput("pageSel"),
+      br(),
+      textOutput("version")
     ),
 
     mainPanel(
@@ -185,6 +187,9 @@ server <- shinyServer(function(input, output) {
   })
   output$selectedArea <- renderText({
     paste0('Santa Cruz Property Tax - Book 006, ', input$page_sel)
+  })
+  output$version <- renderText({
+    "proptaxchoropleth v. 0.2"
   })
   output$pageSel <- renderText({
     sel <- getSelectedPages(input$page_sel)
