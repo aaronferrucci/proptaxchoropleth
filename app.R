@@ -3,18 +3,20 @@ library(shiny)
 library(ggvis)
 library(RColorBrewer)
 
+sep = ","
 page_sels <- list(
-  "SCHS Area" = paste0(c("44", "46", "47", "48", "49", "50"), collapse=","),
-  "Mission Hill Area" = paste0(c("21", "22", "28", "41", "42", "43"), collapse=","),
-  "Mission Area" = paste0(as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)), collapse=","),
-  "West of Mission Hill" = paste0(c("08", "15", "16"), collapse=","),
-  "Bay, King, Otis, Mission" = paste0(as.character(c(18, 19, 20, 26, 31)), collapse=","),
-  "West of Westlake" = paste0(c("07", "13", "14", "27", "30"), collapse=","),
-  "Bay, King, Sherman, Escalona" = paste0(c("11", "12", "29", "33"), collapse=","),
-  "South of Westlake" = paste0(c("02", "03", "09", "10", "34"), collapse=","),
-  "Westlake Park" = paste0(c("01", "06", "23", "24", "32", "53", "58", "60"), collapse=",")
+  "SCHS Area" = paste0(c("44", "46", "47", "48", "49", "50"), collapse=sep),
+  "Mission Hill Area" = paste0(c("21", "22", "28", "41", "42", "43"), collapse=sep),
+  "Mission Area" = paste0(as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)), collapse=sep),
+  "West of Mission Hill" = paste0(c("08", "15", "16"), collapse=sep),
+  "Bay, King, Otis, Mission" = paste0(as.character(c(18, 19, 20, 26, 31)), collapse=sep),
+  "West of Westlake" = paste0(c("07", "13", "14", "27", "30"), collapse=sep),
+  "Bay, King, Sherman, Escalona" = paste0(c("11", "12", "29", "33"), collapse=sep),
+  "South of Westlake" = paste0(c("02", "03", "09", "10", "34"), collapse=sep),
+  "Westlake Park" = paste0(c("01", "06", "23", "24", "32", "53", "58", "60"), collapse=sep),
+  "All" = NA
 )
-default_page_sel <- page_sels[[1]]
+default_page_sel <- names(page_sels)[[1]]
 
 ui <- shinyUI(fluidPage(
   #  title
@@ -23,7 +25,7 @@ ui <- shinyUI(fluidPage(
   # controls
   sidebarLayout(
     sidebarPanel(
-      selectInput("page_sel", "Map Region", page_sels, default_page_sel),
+      selectInput("page_sel", "Map Region", names(page_sels), default_page_sel),
       radioButtons("plotSelect",
                     label = "Plotting Options",
                     choices = list(
@@ -34,7 +36,8 @@ ui <- shinyUI(fluidPage(
                     selected = 1
                   ),
       textOutput("summary"),
-      br()
+      br(),
+      textOutput("pageSel")
     ),
 
     mainPanel(
@@ -62,7 +65,8 @@ ui <- shinyUI(fluidPage(
               br(),
               "On the left are widgets which control the map area and plotting options
               for the parcel map. You can select a region of the map to display - a set
-              of pages chosen to be contiguous. You can also color the map according to
+              of pages chosen to be contiguous. You can also choose 'All' to show all of
+              book 006 (warning: it's rather slow). You can color the map according to
               annual tax assessment, homeowner's exemption or year built.",
               br(),
               br(),
@@ -115,11 +119,21 @@ tt <- function(x) {
        "homeowner exemption: ", row$homeowner, "<br/>", "year built: ", row$year_built, "<br/>", row$type, "<br/>")
 }
 
+getSelectedPages <- function(sel_name) {
+  sel <- page_sels[sel_name][[1]]
+  if (is.na(sel)) return(NA)
+  selected_pages <- unlist(strsplit(sel, sep, fixed=TRUE))
+}
+
 server <- shinyServer(function(input, output) {
 
   df <- reactive({
-    sel <- unlist(strsplit(input$page_sel, ",", fixed=TRUE))
-    final.plot[final.plot$page %in% sel, ]
+    sel_name <- input$page_sel
+    selected_pages <- getSelectedPages(sel_name)
+    if (anyNA(selected_pages))
+      final.plot
+    else
+      final.plot[final.plot$page %in% selected_pages, ]
   })
   
   reactive({
@@ -170,7 +184,14 @@ server <- shinyServer(function(input, output) {
     str
   })
   output$selectedArea <- renderText({
-    paste0('Santa Cruz Property Tax - Book 006, Pages ', input$page_sel)
+    paste0('Santa Cruz Property Tax - Book 006, ', input$page_sel)
+  })
+  output$pageSel <- renderText({
+    sel <- getSelectedPages(input$page_sel)
+    if (anyNA(sel))
+      "Pages: all"
+    else
+      paste0("Pages: ", paste0(sel, collapse=sep))
   })
   
   output$url_table <- renderTable({
