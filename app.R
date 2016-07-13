@@ -4,15 +4,15 @@ library(ggvis)
 library(RColorBrewer)
 
 page_sels <- list(
-  "A" = paste0(c("44", "46", "47", "48", "49", "50"), collapse=","),
-  "B" = paste0(c("21", "22", "28", "41", "42", "43"), collapse=","),
-  "C" = paste0(as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)), collapse=","),
-  "D" = paste0(c("08", "15", "16"), collapse=","),
-  "E" = paste0(as.character(c(18, 19, 20, 26, 31)), collapse=","),
-  "F" = paste0(c("07", "13", "14", "27", "30"), collapse=","),
-  "G" = paste0(c("11", "12", "29", "33"), collapse=","),
-  "H" = paste0(c("02", "03", "09", "10", "34"), collapse=","),
-  "I" = paste0(c("01", "06", "23", "24", "32", "53", "58", "60"), collapse=",")
+  "SCHS Area" = paste0(c("44", "46", "47", "48", "49", "50"), collapse=","),
+  "Mission Hill Area" = paste0(c("21", "22", "28", "41", "42", "43"), collapse=","),
+  "Mission Area" = paste0(as.character(c(17, 25, 35, 36, 37, 38, 39, 40, 51, 52, 54, 56, 57)), collapse=","),
+  "West of Mission Hill" = paste0(c("08", "15", "16"), collapse=","),
+  "Bay, King, Otis, Mission" = paste0(as.character(c(18, 19, 20, 26, 31)), collapse=","),
+  "West of Westlake" = paste0(c("07", "13", "14", "27", "30"), collapse=","),
+  "Bay, King, Sherman, Escalona" = paste0(c("11", "12", "29", "33"), collapse=","),
+  "South of Westlake" = paste0(c("02", "03", "09", "10", "34"), collapse=","),
+  "Westlake Park" = paste0(c("01", "06", "23", "24", "32", "53", "58", "60"), collapse=",")
 )
 default_page_sel <- page_sels[[1]]
 
@@ -45,30 +45,15 @@ ui <- shinyUI(fluidPage(
   )
 ))
 
-# color for property tax
-rampTax <- colorRampPalette(
-  c("white", brewer.pal(n=9, name="YlOrRd")),
-  space="Lab"
-)
-# final.plot$taxColor <- as.character(
-#   cut(final.plot$tax, 20, include.lowest=TRUE, labels=rampTax(20))
-# )
-
-# color for homeowner's exemption
-rampHO <- colorRampPalette(
-  c("white", "lime green"),
-  space="Lab"
-)
-# final.plot$homeownerColor <- as.character(
-#   cut(0 + final.plot$homeowner, 2, include.lowest=TRUE, labels=rampHO(2))
-# )
-
 width <- 600
 height <- 800
 file <- "./data/final.plot.006.rda"
 load(file)
 final.plot$qtax <- round(final.plot$tax, -3)
 final.plot$qhomeowner <- ifelse(final.plot$exemption == 7000, "Y", "N")
+final.plot$qhomeowner[is.na(final.plot$qhomeowner)] <- "N"
+final.plot$qhomeowner <- factor(final.plot$qhomeowner)
+
 final.plot$page <- substring(final.plot$apnnodash, 4, 5)
 
 # tooltip helper. Given a group, extract its row from the data frame.
@@ -83,7 +68,7 @@ tt <- function(x) {
   if(is.null(x)) return(NULL)
   row <- get_row_by_group(x$group)
   paste0(row$apnnodash, "<br/>", row$addr, "<br/>", "tax: $", row$tax, "<br/>",
-       "homeowner exemption: ", row$homeowner, "<br/>", row$type, "<br/>")
+       "homeowner exemption: ", row$homeowner, "<br/>", "year built: ", row$year_built, "<br/>", row$type, "<br/>")
 }
 
 server <- shinyServer(function(input, output) {
@@ -113,7 +98,7 @@ server <- shinyServer(function(input, output) {
         scale_ordinal("fill", range = c("white", "limegreen")) %>%
         hide_axis("x") %>%
         hide_axis("y") %>%
-        add_legend("fill", title="exemption") %>%
+        add_legend("fill", title="homeowner") %>%
         add_tooltip(tt, "hover") %>%
         set_options(width=width-50, height=height, keep_aspect=T)
     else
@@ -124,7 +109,7 @@ server <- shinyServer(function(input, output) {
         scale_numeric("fill", range = c("white", "blue")) %>%
         hide_axis("x") %>%
         hide_axis("y") %>%
-        add_legend("fill", title="exemption") %>%
+        add_legend("fill", title="year built", format="4d") %>%
         add_tooltip(tt, "hover") %>%
         set_options(width=width-50, height=height, keep_aspect=T)
     
@@ -137,7 +122,7 @@ server <- shinyServer(function(input, output) {
     else if (input$plotSelect == 2)
       str <- "Homeowners can apply for an exemption - $7,000 off of the assessed value - so, about $70 less per year."
     else
-      str <- "something about year built"
+      str <- "Year built, according to county records"
     str
   })
   output$hoverNote <- renderText({
