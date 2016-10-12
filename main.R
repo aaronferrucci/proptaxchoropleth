@@ -80,47 +80,47 @@ get_characteristic_page_str <- function(html, i1, i2) {
 }
 
 get_year_built <- function(html) {
-  return(get_characteristic_page_int(html, 1, 2))
+  return(get_characteristic_page_int(html, 1, 5))
 }
 
 get_effective_year <- function(html) {
-  return(get_characteristic_page_int(html, 1, 3))
+  return(get_characteristic_page_int(html, 1, 6))
 }
 
 get_num_units <- function(html){
-  return(get_characteristic_page_int(html, 1, 4))
+  return(get_characteristic_page_int(html, 1, 7))
 }
 
 get_main_area <- function(html) {
-  return(get_characteristic_page_int(html, 2, 2))
-}
-
-get_num_rooms <- function(html) {
-  return(get_characteristic_page_int(html, 2, 3))
-}
-
-get_bedrooms <- function(html) {
   return(get_characteristic_page_int(html, 2, 4))
 }
 
+get_num_rooms <- function(html) {
+  return(get_characteristic_page_int(html, 2, 5))
+}
+
+get_bedrooms <- function(html) {
+  return(get_characteristic_page_int(html, 2, 6))
+}
+
 get_bathrooms <- function(html) {
-  return(get_characteristic_page_str(html, 2, 5))
-}
-
-get_roof <- function(html) {
-  return(get_characteristic_page_str(html, 2, 6))
-}
-
-get_heat <- function(html) {
   return(get_characteristic_page_str(html, 2, 7))
 }
 
+get_roof <- function(html) {
+  return(get_characteristic_page_str(html, 2, 8))
+}
+
+get_heat <- function(html) {
+  return(get_characteristic_page_str(html, 2, 9))
+}
+
 get_fireplaces <- function(html) {
-  return(get_characteristic_page_int(html, 2, 8))
+  return(get_characteristic_page_int(html, 1, 10))
 }
 
 get_pools <- function(html) {
-  return(get_characteristic_page_int(html, 3, 2))
+  return(get_characteristic_page_str(html, 3, 6))
 }
 
 get_apn_characteristics_data <- function(html) {
@@ -152,12 +152,96 @@ get_apn_characteristics_data <- function(html) {
   
 }
 
-get_apn_tax_data <- function(html) {
+# Send in just the apn normally; pre-compute and provide the tax_html to avoid
+# hitting the web site repeatedly during debugging.
+# The apn must be always be provided: it's used to verify the returned data.
+get_apn_tax_raw_data <- function(apn, tax_html=NULL) {
+  if (is.null(tax_html)) {
+    tax_url <- get_apn_tax_url(apn)
+    tax_html <- read_html(tax_url)
+  }
+  
+  all_nodes <- html_nodes(tax_html, ".tablePrintOnly .trPrintOnly")
+  
+  data <- sapply(all_nodes, function(n) strsplit(html_text(n), "\\r\\n\\s*", perl=T))
+  # I expect to have a list of lists, like
+  # [[1]]
+  # [1] "Parcel Info"
+  #
+  # [[2]]
+  # [1] "APN"           "Situs Address" "Class"        
+  #
+  # [[3]]
+  # [1] ""                                                                 
+  # [2] "00649103"                                                         
+  # [3] "127 OTIS ST,  SANTA CRUZ                      , 95060-4245       "
+  # [4] "711-OTHER CHURCH PROPERTY"                                        
+  #
+  # [[4]]
+  # [1] "Assessed Value"
+  #
+  # [[5]]
+  # [1] "Year"      "2015/2016"
+  # ...
+  # Unfortunately there are two years' worth of data munged in here. I'm going to assume
+  # that the most recent year appears last.
+  tidy <- list()
+  if (data[[1]] != "Parcel Info") {
+    print(paste0("Failed to find 'Parcel Info' in 1st element for apn ", apn))
+    return(tidy)
+  }
+  if (!all(data[[2]] == list("APN", "Situs Address", "Class"))) {
+    print(paste0("Didn't find expected keys in 2nd element"))
+    print(data[[2]])
+    return(tidy)
+  }
+  if (data[[3]][2] != apn) {
+    print(paste0("Didn't find apn as data[[3]][2] (found:", data[[3]][2], ")"))
+    return(tidy)
+  }
+  tidy[["Situs Address"]] <- data[[3]][3]
+  tidy[["Class"]] <- data[[3]][4]
+  
+  if (data[[4]] == "Assessed Value") {
+    for (i in 5:length(data)) {
+      item <- data[[i]]
+      if (length(item) == 2)
+        tidy[[item[1]]] <- item[2]      
+    }
+  }
+  tidy[['url']] <- tax_url
+  return(tidy)
+}
+
+# Next: characteristics data
+get_apn_tax_data <- function(apn, html=NULL) {
+  raw_data <- get_apn_tax_raw_data(apn, html)
+  
+  tax <- getDollarsToNumeric(raw_data, "Total")
+  addr <- trim_address(trim_info(raw_data[["Situs Address"]]))
+  type <- raw_data[["Class"]]
+  exemption <- getDollarsToNumeric(raw_data, "Homeowners  Exemption")
+  assessment <- getDollarsToNumeric(raw_data, "Net Assessment")
+  return(list(tax=tax, addr=addr, type=type, exemption=exemption, assessment=assessment))
+}
+
+get_apn_tax_data.old <- function(html) {
   tax <- get_tax(html)
   addr <- get_address(html)
   type <- get_type(html)
   exemption <- get_exemption(html)
-  return(list(tax=tax, addr=addr, type=type, exemption=exemption))
+  assessment <- get_assessment(html)
+  return(list(tax=tax, addr=addr, type=type, exemption=exemption, assessment=assessment))
+}
+
+get_assessment <- function(html) {
+  nodes <- html_nodes(html, "body center table tr td table tr:nth-child(6) td div:nth-child(3) div div.plmTbody_AOM div")
+  assessment <- 0
+  if (length(nodes) >= 7) {
+    asStr <- html_text(nodes[7])
+    assessment <- dollarsToNumeric(asStr) 
+  }
+  return(assessment)
 }
 
 get_exemption <- function(html) {
@@ -177,6 +261,7 @@ dollarsToNumeric <- function(x) {
   return(as.numeric(p2))
 }
 
+
 # return the total yearly tax as a numeric.
 get_tax <- function(html) {
   nodes <- html_nodes(html, "body center table tr td table tr:nth-child(4) td")
@@ -195,6 +280,28 @@ get_tax <- function(html) {
   return(proptax)
 }
 
+get_tax2 <- function(tax_data) {
+  total <- tax_data[["Total"]]
+  if (is.null(total)) {
+    total <- 0
+  } else {
+    total <- dollarsToNumeric(total)
+  }
+  
+  return(total)
+}
+
+getDollarsToNumeric <- function(data, title) {
+  total <- data[[title]]
+  if (is.null(total)) {
+    total <- 0
+  } else {
+    total <- dollarsToNumeric(total)
+  }
+  
+  return(total)
+}
+
 trim_info <- function (x) {
   # remove leading, trailing whitespace
   x <- gsub("^\\s+|\\s+$", "", x)
@@ -207,6 +314,7 @@ trim_info <- function (x) {
 
 trim_address <- function(addr) {
   addr <- gsub(", SANTA CRUZ,.*$", "", addr)
+  return(addr)
 }
 
 # return the parcel address as a character string.
@@ -236,7 +344,7 @@ if (file.exists("data/shp.rda")) {
   save(shp, file="data/shp.rda")
 }
 
-area <- "006"
+area <- "00649"
 plot_file <- paste0("data/final.plot.", area, ".rda")
 if (file.exists(plot_file)) {
   print(paste0("Using cached plot data from ", plot_file))
@@ -253,6 +361,7 @@ if (file.exists(plot_file)) {
     id = sm$objectid,
     tax = numeric(len),
     exemption = numeric(len),
+    assessment = numeric(len),
     addr = character(len),
     type = character(len),
     year_built = integer(len),
@@ -276,7 +385,7 @@ if (file.exists(plot_file)) {
   for (i in 1:len) {
     apn <- parcel_data[i,]$apnnodash
     print(paste("scraping data", "(", i, "of", len, ") for parcel", apn))
-    tax_html <- get_apn_tax_html(apn)
+    html <- get_apn_tax_html(tax_apn)
     char_html <- get_apn_characteristics_html(apn)
 
     print(paste("parsing data", "(", i, "of", len, ") for parcel", apn))
@@ -287,6 +396,7 @@ if (file.exists(plot_file)) {
     parcel_data[i,]$addr <- apn_data$addr
     parcel_data[i,]$type <- apn_data$type
     parcel_data[i,]$exemption <- apn_data$exemption
+    parcel_data[i,]$assessment <- apn_data$assessment
     
     parcel_data[i,]$year_built = char_data$year_built
     parcel_data[i,]$effective_year = char_data$effective_year
