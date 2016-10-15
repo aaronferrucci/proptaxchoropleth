@@ -37,6 +37,8 @@ ui <- shinyUI(fluidPage(
                   ),
       textOutput("summary"),
       br(),
+      textOutput("hover_note"),
+      br(),
       textOutput("pageSel"),
       br(),
       textOutput("version")
@@ -44,17 +46,23 @@ ui <- shinyUI(fluidPage(
 
     mainPanel(
       tabsetPanel(
+        # Plot panel
+        tabPanel("Parcel Map", 
+                 br(),
+                 column(12, ggvisOutput('plot'))
+        ),
         tabPanel(
-          "README",
+          "About",
           fluidRow(
             br(),
             column(8, offset=2,
+              h4("What's this for?"),
               "Parcel data for Santa Cruz County is available from the Assessor's web page. 
                The general public can look up various aspects of parcels in Santa Cruz, but
                data visualization options are limited. This app provides a
                view of some aspects of parcel data in an interactive map.",
               br(),
-              br(),
+              h4("Parcel number encoding"),
               "Each parcel is identified by an Assessor's Parcel Number (APN), which 
               is an 8 digit number separated by dashes (e.g. 049-103-12). The first 
               3 digits represent the Assessor's mapbook containing the parcel (Book 
@@ -64,19 +72,30 @@ ui <- shinyUI(fluidPage(
               digits represent the Assessor's Parcel Number on that block (12 in the 
               example).",
               br(),
+              h4("FAQ"),
+              "Q: What the heck is a choropleth?",
               br(),
-              "On the left are widgets which control the map area and plotting options
-              for the parcel map. You can select a region of the map to display - a set
-              of pages chosen to be contiguous. You can also choose 'All' to show all of
-              book 006 (warning: it's rather slow). You can color the map according to
-              annual tax assessment, homeowner's exemption or year built.",
+              "A: It's a map colored according to data.",
+              a(
+                "https://en.wikipedia.org/wiki/Choropleth_map",
+                href="https://en.wikipedia.org/wiki/Choropleth_map",
+                target="_blank"
+              ),
               br(),
+              "Q: Can you display street names on the map?",
               br(),
-              "Hover over a parcel for more information.",
+              "A: Maybe... that would help navigation a lot.",
               br(),
+              "Q: Why are the map regions named the way they are?",
+              br(),
+              "A: I divided the map up into approximately same-sized chunks,
+              and came up with those names. Let me know if you have better
+              names.",
               br()
             ),
+            br(),
             fluidRow(
+              br(),
               br(),
               column(8, offset=2,
                      tableOutput("url_table")
@@ -84,11 +103,6 @@ ui <- shinyUI(fluidPage(
               br()
             )
           )
-        ),
-        # Plot panel
-        tabPanel("Parcel Map", 
-                 br(),
-                 column(12, ggvisOutput('plot'))
         )
       )
     )
@@ -144,7 +158,7 @@ server <- shinyServer(function(input, output) {
         ggvis(~long, ~lat) %>%
         group_by(group, id) %>%
         layer_paths(fill = ~qtax) %>%
-        scale_numeric("fill", range = c("white", "red")) %>%
+        scale_numeric("fill", range = c("blue", "red")) %>%
         hide_axis("x") %>%
         hide_axis("y") %>%
         add_legend("fill", title="annual property tax") %>%
@@ -155,7 +169,7 @@ server <- shinyServer(function(input, output) {
         ggvis(~long, ~lat) %>%
         group_by(group, id) %>%
         layer_paths(fill = ~qhomeowner) %>%
-        scale_ordinal("fill", range = c("white", "limegreen")) %>%
+        scale_ordinal("fill", range = c("orange", "limegreen")) %>%
         hide_axis("x") %>%
         hide_axis("y") %>%
         add_legend("fill", title="homeowner") %>%
@@ -166,7 +180,7 @@ server <- shinyServer(function(input, output) {
         ggvis(~long, ~lat) %>%
         group_by(group, id) %>%
         layer_paths(fill = ~year_built) %>%
-        scale_numeric("fill", range = c("white", "blue")) %>%
+        scale_numeric("fill", range = c("orange", "blue")) %>%
         hide_axis("x") %>%
         hide_axis("y") %>%
         add_legend("fill", title="year built", format="4d") %>%
@@ -185,18 +199,22 @@ server <- shinyServer(function(input, output) {
       str <- "Year built, according to county records"
     str
   })
+
+  output$hover_note <-
+    renderText({"Hover over a parcel for more information."})
+
   output$selectedArea <- renderText({
     paste0('Santa Cruz Property Tax - Book 006, ', input$page_sel)
   })
   output$version <- renderText({
-    "proptaxchoropleth v. 0.2"
+    "proptaxchoropleth v. 0.3beta"
   })
   output$pageSel <- renderText({
     sel <- getSelectedPages(input$page_sel)
     if (anyNA(sel))
-      "Pages: all"
+      "Selected pages: all"
     else
-      paste0("Pages: ", paste0(sel, collapse=sep))
+      paste0("Selected pages: ", paste0(sel, collapse=sep))
   })
   
   output$url_table <- renderTable({
