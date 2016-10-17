@@ -1,0 +1,110 @@
+---
+title: 'Measures A & B: cost per parcel'
+author: "Aaron Ferrucci"
+date: "October 16, 2016"
+output: html_document
+references:
+- id: BP2012
+  title: Measures I and J
+  issued:
+    year: 2012
+    month: 6
+  container-title: balotpedia.org
+  URL: https://ballotpedia.org/Santa_Cruz_City_Schools_parcel_taxes,_Measures_I_and_J_(June_2012)
+- id: AF2016
+  title: Source code for this document
+  issued:
+    year: 2016
+    month: 10
+  author:
+  - family: Ferrucci
+    given: Aaron
+  URL: https://github.com/aaronferrucci/proptaxchoropleth
+- id: ASR
+  title: Assessor's Parcel Info
+  URL: http://sccounty01.co.santa-cruz.ca.us/ASR/
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.height=8, fig.width=12)
+```
+
+```{r load, echo=FALSE, message=FALSE, include=FALSE}
+library(dplyr)
+```
+
+## Introduction
+This document explores the costs of two measures presented to the voters in November. Publicly available data is gathered and analyzed so that voters can see the big picture. 
+
+## Measures A & B
+This November, Santa Cruz voters will decide whether to issue some bonds for local schools. Measure A authorizes $140 million in bonds in the Santa Cruz High School district; Measure B authorizes $68 million for the Santa Cruz ELementary School district. The funds raised are unique in that they are strictly for facility repair and improvement, not for teacher or administrator salaries.
+
+A & B are also unique in the cost seen by the parcel owner. Past school measures have been funded as a flat rate per parcel. For example, in 2012, measures I and J increased parcel taxes by $10 and $15, respectively [@BP2012]. In contrast, A & B are financed "by ad valorem taxes levied on real property...". In English, this means that the cost of each measure is proportionate to property assessed value. A & B will add an estimated $29.50 per $100,000 of assessed value to parcel taxes. 
+
+Property assessments in Califorian can vary widely for similar parcels, due to the effects of proposition 13 and other laws. Ad valorem taxation means that if you have a high property assessment, and thus already pay a large property tax, A & B will cost you more than your neighbor, with a lower assessment on an identical property.
+
+## Property Taxes Are Public Data
+Fortunately, information on parcels is part of the public record, and is available at the county assessors web page [@ASR]. It's easy to look up an individual parcel's info, or several, but seeing the big picture is not so easy. Building upon previous work , I capture all the parcel data and make it available for analysis using R and ggplot2 [@AF2016].
+
+## Data Exploration
+```{r echo=FALSE, message=FALSE, include=FALSE}
+source("measAB.R")
+```
+I've captured the parcel data for Assessor's book 006, which encompasses the area around Santa Cruz High School, bounded by Laurel, Chestnut, California, Bay and High Streets, roughly. If your parcel number starts with "006", your data is here.
+
+The data consists of ```r nrow(data)``` records. Each record has a parcel number, address, assessment value and more. From this data the cost of measures A & B (if they both should pass) can be calculated, as ``` assessed value * $29.50 * 2 / $100,000```. 
+
+The total revenue in Assessor's book 006 from the measures A & B tax increases is ```r paste0("$", format(sum(data$measAB), scientific=F))```. The average parcel increase is ```r paste0("$", round(mean(data$measAB), 2))```.
+
+Parcels exist in various classes or types. A typical home has type "020-SINGLE RESIDENCE". Other types include those for churches, parks, stores, etc. Depending on the parcel type, property tax may or not be paid, or certain exemptions may apply. 
+
+Considering the parcels that are taxable, let's have a look at which types provide the most revenue for measures A & B:
+``` {r echo=F}
+data.sum <- group_by(data[data$measAB > 0,], type)
+data.sum <- summarize(data.sum, sum = sum(measAB))
+data.sum <- data.sum[order(data.sum$sum, decreasing=T),]
+# Re-order the type as a factor
+data.sum$type <- factor(data.sum$type, levels=data.sum$type)
+ggplot(data.sum) +
+  geom_bar(aes(x=type, y=sum), stat="identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Single residences and condominiums produce the most revenue, by far. This is probably simply because those parcel types are the most common.
+
+A different way to look at the data by parcel type is to consider the average measure A/B cost increase, per type:
+
+``` {r echo=F}
+data.mean <- group_by(data[data$measAB > 0,], type)
+data.mean <- summarize(data.mean, mean = mean(measAB))
+data.mean <- data.mean[order(data.mean$mean, decreasing=T),]
+# Re-order the type as a factor
+data.mean$type <- factor(data.mean$type, levels=data.mean$type)
+ggplot(data.mean) +
+  geom_bar(aes(x=type, y=mean), stat="identity") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Now we can see that commercial parcel types have a higher average measure A/B increase.
+
+Yet another way to slice the data is to show a histogram of measure A/B costs for a given parcel type. Here's the histogram for single residences, separated according to whether the property is owner-occupied. (Note: I'm basing this on the homeowner's exemption - if it's claimed, I consider the property to be owner-occupied; otherwise I call it rented. This may not be correct in all cases):
+``` {r echo=F}
+data$owner_occupied <- factor(data$homeowner, labels=c("Rented", "Owner-Occuppied"))
+ggplot(data[data$type == "020-SINGLE RESIDENCE",], aes(measAB)) +
+  geom_histogram(breaks=seq(0, 1500,by=100)) +
+  facet_grid(. ~ owner_occupied)
+```
+
+It looks like owner-occupied parcels have a slightly lower measure A/B cost, compared to rentals.
+
+Here's a map of the 006 book, colored according to measure A/B cost:
+
+```{r pressure, echo=FALSE}
+print(p)
+```
+
+(Here's a version of that image which you can zoom in on: http://imgur.com/mp2qH2O)
+
+There's a wide variety of costs on this map. In the upper west side, we can see a number of large parcels which will have a larger A/B cost increase - this makes sense as those are higher-valued properties with high assessments. Down in the region bounded by Mission St, King St. and Bay St, we have similar-sized properties with a variety of assessments. There are also several large parcels with 0 tax - those are Santa Cruz High School on the lower right, Mission Hill in the middle right, Westlake Pond in the upper left.
+
+# References

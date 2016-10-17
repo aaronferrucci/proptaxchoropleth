@@ -13,6 +13,7 @@
 # the block number on that page (Block 3 in the example). The last 2 
 # digits represent the Assessor's Parcel Number on that block (12 in the 
 # example)
+library(rvest)
 
 get_plot_data <- function(area = "006") {
   
@@ -60,15 +61,23 @@ get_plot_data <- function(area = "006") {
     parcel_data$roof <- as.character(parcel_data$roof)
     parcel_data$heat <- as.character(parcel_data$heat)
     
+    active_record <- logical(len)
+    inactive_apns <- character(len)
     for (i in 1:len) {
       apn <- parcel_data[i,]$apnnodash
       print(paste("scraping data", "(", i, "of", len, ") for parcel", apn))
-      tax_html <- get_apn_tax_html(apn)
       char_html <- get_apn_characteristics_html(apn)
-      
-      print(paste("parsing data", "(", i, "of", len, ") for parcel", apn))
-      apn_data <- get_apn_tax_data(apn, tax_html)
       char_data <- get_apn_characteristics_data(apn, char_html)
+      if (is.null(char_data)) {
+        # Inactive parcel, or other form of "no data"
+        active_record[i] <- FALSE
+        inactive_apns[i] <- as.character(apn)
+        next
+      }
+      active_record[i] <- TRUE
+      print(paste("parsing data", "(", i, "of", len, ") for parcel", apn))
+      tax_html <- get_apn_tax_html(apn)
+      apn_data <- get_apn_tax_data(apn, tax_html)
       
       parcel_data[i,]$tax <- apn_data$tax
       parcel_data[i,]$addr <- apn_data$addr
@@ -86,6 +95,15 @@ get_plot_data <- function(area = "006") {
       parcel_data[i,]$heat = char_data$heat
       parcel_data[i,]$fireplaces = char_data$fireplaces
       parcel_data[i,]$pools = char_data$pools
+    }
+    
+    inactive_apns <- inactive_apns[inactive_apns != ""]
+    if (length(inactive_apns > 0)) {
+      print("Omitting these inactive apns:")
+      print(inactive_apns[inactive_apns != ""])
+      # Trim the inactives
+      parcel_data <- parcel_data[active_record,]
+      sm <- sm[active_record,]
     }
     
     # some derived parcel data
@@ -184,6 +202,10 @@ get_apn_characteristics_data_raw <- function(apn, char_html=NULL) {
     print(paste0("Didn't find apn as data[[3]][2] (found:", data[[3]][2], ")"))
     return(tidy)
   }
+  if (grepl("(Inactive)", data[[3]][3])) {
+    print(paste0("apn ", apn, " is (Inactive); omitting it."))
+    return(list())
+  }
   tidy[["Situs Address"]] <- data[[3]][3]
   tidy[["Class"]] <- data[[3]][4]
   # list elements 4 and up are more regular
@@ -211,6 +233,9 @@ get_int_or_NA <- function(val) {
 
 get_apn_characteristics_data <- function(apn, html=NULL) {
   raw_data <- get_apn_characteristics_data_raw(apn, html)
+  if (length(raw_data) == 0) {
+    return(NULL)
+  }
   
   year_built <- get_int_or_NA(raw_data[["Year Built"]])
   effective_year <- get_int_or_NA(raw_data[["Effective Year"]])
