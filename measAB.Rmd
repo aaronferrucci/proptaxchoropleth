@@ -34,17 +34,17 @@ library(dplyr)
 ```
 
 ## Introduction
-This document explores the costs of two measures presented to the voters in November. Publicly available data is gathered and analyzed so that voters can see the big picture. 
+This document explores the costs of two measures presented to the voters in November. I've gathered and analyzed publicly available data to explore the cost of the measures. 
 
 ## Measures A & B
 This November, Santa Cruz voters will decide whether to issue some bonds for local schools. Measure A authorizes $140 million in bonds in the Santa Cruz High School district; Measure B authorizes $68 million for the Santa Cruz ELementary School district. The funds raised are unique in that they are strictly for facility repair and improvement, not for teacher or administrator salaries.
 
-A & B are also unique in the cost seen by the parcel owner. Past school measures have been funded as a flat rate per parcel. For example, in 2012, measures I and J increased parcel taxes by $10 and $15, respectively [@BP2012]. In contrast, A & B are financed "by ad valorem taxes levied on real property...". In English, this means that the cost of each measure is proportionate to property assessed value. A & B will add an estimated $29.50 per $100,000 of assessed value to parcel taxes. 
+A & B are also unique in the cost seen by the parcel owner. Past school measures have been funded as a flat rate per parcel. For example, in 2012, measures I and J increased parcel taxes by $10 and $15, respectively [@BP2012]. In contrast, A & B are financed "by ad valorem taxes levied on real property...". In English, this means that the cost of each measure is proportionate to property assessed value. A & B will add an estimated $29.50 per $100,000 of assessed value to parcel taxes.
 
 Property assessments in Califorian can vary widely for similar parcels, due to the effects of proposition 13 and other laws. Ad valorem taxation means that if you have a high property assessment, and thus already pay a large property tax, A & B will cost you more than your neighbor, with a lower assessment on an identical property.
 
-## Property Taxes Are Public Data
-Fortunately, information on parcels is part of the public record, and is available at the county assessors web page [@ASR]. It's easy to look up an individual parcel's info, or several, but seeing the big picture is not so easy. Building upon previous work , I capture all the parcel data and make it available for analysis using R and ggplot2 [@AF2016].
+## Parcel Info
+Information on parcels is part of the public record, and is available at the county assessors web page [@ASR]. It's easy to look up an individual parcel's info, or several, but seeing the big picture is not so easy. Building upon previous work, I capture all the parcel data and make it available for analysis using R and some map plotting libraries [@AF2016].
 
 ## Data Exploration
 ```{r echo=FALSE, message=FALSE, include=FALSE}
@@ -67,6 +67,9 @@ data.sum <- data.sum[order(data.sum$sum, decreasing=T),]
 data.sum$type <- factor(data.sum$type, levels=data.sum$type)
 ggplot(data.sum) +
   geom_bar(aes(x=type, y=sum), stat="identity") +
+  ggtitle("Measure A/B Cost by Parcel Type") +
+  ylab("A/B Cost") +
+  xlab("Parcel Type") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
@@ -82,6 +85,9 @@ data.mean <- data.mean[order(data.mean$mean, decreasing=T),]
 data.mean$type <- factor(data.mean$type, levels=data.mean$type)
 ggplot(data.mean) +
   geom_bar(aes(x=type, y=mean), stat="identity") +
+  ggtitle("Average  A/B Cost by Parcel Type") +
+  ylab("A/B Average Cost") +
+  xlab("Parcel Type") +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
 
@@ -92,6 +98,9 @@ Yet another way to slice the data is to show a histogram of measure A/B costs fo
 data$owner_occupied <- factor(data$homeowner, labels=c("Rented", "Owner-Occuppied"))
 ggplot(data[data$type == "020-SINGLE RESIDENCE",], aes(measAB)) +
   geom_histogram(breaks=seq(0, 1500,by=100)) +
+  ggtitle("A/B Cost for Single Residence, Rented and Owner-Occupied") +
+  ylab("Count") +
+  xlab("A/B Cost") +
   facet_grid(. ~ owner_occupied)
 ```
 
@@ -103,7 +112,7 @@ Here's a map of the 006 book, colored according to measure A/B cost:
 print(p)
 ```
 
-(Here's a version of that image which you can zoom in on: http://imgur.com/mp2qH2O)
+(Here's a version of that image which you can zoom in on: http://imgur.com/K5DjzoF)
 
 There's a wide variety of costs on this map. In the upper west side, we can see a number of large parcels which will have a larger A/B cost increase - this makes sense as those are higher-valued properties with high assessments. Down in the region bounded by Mission St, King St. and Bay St, we have similar-sized properties with a variety of assessments. There are also several large parcels with 0 tax - those are Santa Cruz High School on the lower right, Mission Hill in the middle right, Westlake Pond in the upper left.
 
